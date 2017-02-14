@@ -57,7 +57,11 @@ static void type##_array_set(type##_array_t* array, type val, unsigned long inde
 \
 static type type##_array_get(type##_array_t* array, unsigned long index) \
 {\
-    if(!array || index >= array->len || index < 0) return NULL; \
+    if(!array || index >= array->len || index < 0) \
+    {\
+        fprintf(stdout,"INDEX OUT OF BOUND\n"); \
+        return NULL; \
+    }\
     return array->ar[index]; \
 }\
 \

@@ -18,7 +18,7 @@ int main(int argc, char* argv[])
     }
     fprintf(stdout, "\nLen : %lu\n", int_array_len(array));
     int_array_destroy(&array);
-    //fprintf(stdout, "%d\n", int_array_get(array,1));
+    fprintf(stdout, "%d\n", int_array_get(array,1));
 
     return 0;
 }
