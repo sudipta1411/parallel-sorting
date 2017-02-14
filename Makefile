@@ -3,8 +3,8 @@ CFLAGS = -I.
 DFLAGS =  -DNUM=1024*128 -DNUM_THREAD=16
 FFLAGS = -fopenmp
 LFLAGS = -lm
-INCLUDE = array.h
-OBJ = main.o
+INCLUDE = array.h merge_sort.h
+OBJ = main.o merge_sort.o
 EXEC =parallel-sorting
 
 %.o: %.c $(INCLUDE)
