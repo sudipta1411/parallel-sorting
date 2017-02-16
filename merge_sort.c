@@ -74,7 +74,7 @@ static void parallel_merge(int_array_t* array, size_t start,
     if(st < (end-start))
     {
 #ifdef OMP
-#pragma omp parallel sections /*private(start, end, v, st)*/
+#pragma omp parallel sections nowait /*private(start, end, v, st)*/
         {
 #pragma omp section
 #endif
@@ -110,7 +110,7 @@ static void parallel_merge_sort(int_array_t* array, size_t start,
     {
         size_t mid = start + (end-start) / 2; //avoids overflow
 #ifdef OMP
-#pragma omp parallel sections /*private(start, end, mid)*/
+#pragma omp parallel sections nowait /*private(start, end, mid)*/
         {
 #pragma omp section
 #endif
