@@ -65,19 +65,33 @@ static void print(int_array_t* array)
     }
 }
 
-static void parallel_merge(int_array_t* array, size_t start, size_t end, comparator_int comp)
+static void parallel_merge(int_array_t* array, size_t start,
+        size_t end, comparator_int comp)
+{
+
+}
+
+static void parallel_merge_sort(int_array_t* array, size_t start,
+        size_t end, comparator_int comp)
 {
     if(!array) return;
-    if(end - start == 1)
-        int_swap(&(array->ar[start]), &(array->ar[end]));
+    fprintf(stdout, "start : %lu  end : %lu\n", start, end);
+    if((end - start) >= 1)
+    {
+        size_t mid = start + (end-start) / 2; //avoids overflow
+        parallel_merge_sort(array, start, mid, comp);
+        parallel_merge_sort(array, mid+1, end, comp);
+        parallel_merge(array, start, end, comp);
+    }
 }
 
 void run_parallel_merge_sort(size_t size)
 {
+    size = 8;
     create(size);
     set_with_rand(array);
     print(array);
-    parallel_merge(array, 0, 1, &int_comp);
+    parallel_merge_sort(array, 0, array->len-1, &int_comp);
     print(array);
     destroy();
 }
