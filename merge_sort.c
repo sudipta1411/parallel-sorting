@@ -20,11 +20,12 @@ static int int_comp(int* a, int* b)
 {
     int ret = 0;
     if(*a > *b)
+    {
         ret = 1;
-    else if(*a < *b)
+        int_swap(a,b);
+    } else if(*a < *b)
     {
         ret = -1;
-        int_swap(a,b);
     }
     return ret;
 }
@@ -48,7 +49,7 @@ static void set_with_rand(int_array_t* array)
     srand((unsigned)time(NULL));
     for(i=0; i<array->len; i++)
     {
-        r = rand();
+        r = rand() % 100;
         int_array_set(array, r, i);
     }
 }
@@ -66,32 +67,48 @@ static void print(int_array_t* array)
 }
 
 static void parallel_merge(int_array_t* array, size_t start,
-        size_t end, comparator_int comp)
+        size_t end, comparator_int comp, size_t v)
 {
-
+    size_t st = v << 1;
+    size_t i;
+    if(st < (end-start))
+    {
+        parallel_merge(array, start, end, comp, st);
+        parallel_merge(array, start + v, end, comp, st);
+        for(i = start + v; i< end - v; i += st)
+        {
+            fprintf(stdout, "(%lu, %lu), ", i, i + v);
+            comp(&(array->ar[i]), &(array->ar[i+v]));
+        }
+    } else
+    {
+        fprintf(stdout, "(%lu, %lu), ", start, start + v);
+        comp(&(array->ar[start]), &(array->ar[start+v]));
+    }
 }
 
 static void parallel_merge_sort(int_array_t* array, size_t start,
         size_t end, comparator_int comp)
 {
     if(!array) return;
-    fprintf(stdout, "start : %lu  end : %lu\n", start, end);
+    //fprintf(stdout, "start : %lu  end : %lu\n", start, end);
     if((end - start) >= 1)
     {
         size_t mid = start + (end-start) / 2; //avoids overflow
         parallel_merge_sort(array, start, mid, comp);
         parallel_merge_sort(array, mid+1, end, comp);
-        parallel_merge(array, start, end, comp);
+        parallel_merge(array, start, end, comp, 1);
     }
 }
 
 void run_parallel_merge_sort(size_t size)
 {
-    size = 8;
+    size = 16;
     create(size);
     set_with_rand(array);
     print(array);
     parallel_merge_sort(array, 0, array->len-1, &int_comp);
+    fprintf(stdout, "\n");
     print(array);
     destroy();
 }
