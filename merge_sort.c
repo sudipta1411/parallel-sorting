@@ -49,7 +49,7 @@ static void set_with_rand(int_array_t* array)
     srand((unsigned)time(NULL));
     for(i=0; i<array->len; i++)
     {
-        r = rand() % 1000;
+        r = rand() % MAX;
         int_array_set(array, r, i);
     }
 }
@@ -74,29 +74,24 @@ static void parallel_merge(int_array_t* array, size_t start,
     if(st < (end-start))
     {
 #ifdef OMP
-#pragma omp parallel sections nowait /*private(start, end, v, st)*/
-        {
-#pragma omp section
+#pragma omp task
 #endif
             parallel_merge(array, start, end, comp, st);
 #ifdef OMP
-#pragma omp section
+#pragma omp task
 #endif
             parallel_merge(array, start + v, end, comp, st);
 #ifdef OMP
-#pragma omp section
+#pragma omp task
 #endif
            for(i = start + v; i< end - v; i += st)
            {
-               fprintf(stdout, "[%d] (%lu, %lu)\n", omp_get_thread_num(), i, i + v);
+               //fprintf(stdout, "[%d] (%lu, %lu)\n", omp_get_thread_num(), i, i + v);
                comp(&(array->ar[i]), &(array->ar[i+v]));
            }
-#ifdef OMP
-        }
-#endif
     } else
     {
-        fprintf(stdout, "[%d] (%lu, %lu)\n", omp_get_thread_num(), start, start + v);
+        //fprintf(stdout, "[%d] (%lu, %lu)\n", omp_get_thread_num(), start, start + v);
         comp(&(array->ar[start]), &(array->ar[start+v]));
     }
 }
@@ -110,22 +105,17 @@ static void parallel_merge_sort(int_array_t* array, size_t start,
     {
         size_t mid = start + (end-start) / 2; //avoids overflow
 #ifdef OMP
-#pragma omp parallel sections nowait /*private(start, end, mid)*/
-        {
-#pragma omp section
+#pragma omp task
 #endif
             parallel_merge_sort(array, start, mid, comp);
 #ifdef OMP
-#pragma omp section
+#pragma omp task
 #endif
             parallel_merge_sort(array, mid+1, end, comp);
 #ifdef OMP
-#pragma omp section
+#pragma omp task
 #endif
             parallel_merge(array, start, end, comp, 1);
-#ifdef OMP
-        }
-#endif
     }
 }
 
@@ -135,7 +125,14 @@ void run_parallel_merge_sort(size_t size)
     fprintf(stdout, "Original Array\n");
     set_with_rand(array);
     print(array);
-    parallel_merge_sort(array, 0, array->len-1, &int_comp);
+#ifdef OMP
+#pragma omp parallel
+    {
+#endif
+        parallel_merge_sort(array, 0, array->len-1, &int_comp);
+#ifdef OMP
+    }
+#endif
     fprintf(stdout, "\n");
     fprintf(stdout, "Sorted Array\n");
     print(array);

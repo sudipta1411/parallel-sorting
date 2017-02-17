@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -I.
-DFLAGS = -DNUM=8 -DNUM_THREAD=2 -DOMP
+DFLAGS = -DNUM=4096 -DNUM_THREAD=8 -DOMP -DMAX=10000
 FFLAGS = -fopenmp
 LFLAGS = -lm
 INCLUDE = array.h merge_sort.h
