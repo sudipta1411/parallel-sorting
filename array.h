@@ -6,7 +6,6 @@
 
 #define ARR_SIZE(x) ((sizeof x) / (sizeof *x))
 
-
 /*Generic array*/
 #define array_impl(type) \
     typedef struct { \
