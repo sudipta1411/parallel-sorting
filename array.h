@@ -25,25 +25,10 @@ static type##_array_t* type##_array_create(size_t len) \
     return array;\
 }\
 \
-void free_elem(type** elem) \
-{\
-    if(elem && *elem) \
-    {\
-        free(*elem); \
-        *elem = NULL; \
-    }\
-}\
-\
 static void type##_array_destroy(type##_array_t** array) \
 {\
     if(array && *array) \
     {\
-        /*size_t i; \
-        for(i=0; i<(*array)->len; i++) \
-        {\
-            free_elem(&(*array)->ar+i); \
-            free((*array)->ar+i); \
-        }*/\
         free(*array); \
         *array = NULL; \
     }\
@@ -70,5 +55,7 @@ static size_t type##_array_len(type##_array_t* array) \
     if(!array) return 0; \
     return array->len; \
 }
+
+#define ARRAY_DEFINED
 
 #endif /*_ARRAY_H*/

@@ -3,6 +3,7 @@
 #include<omp.h>
 #include"merge_sort.h"
 #include"array.h"
+#include"comp.h"
 
 array_impl(int);
 define_fptr(int);
@@ -53,6 +54,7 @@ static void set_with_rand(int_array_t* array)
         int_array_set(array, r, i);
     }
 }
+
 static void print(int_array_t* array)
 {
     if(array)
