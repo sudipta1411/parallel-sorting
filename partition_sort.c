@@ -18,18 +18,9 @@ static inline void int_swap(int* a, int* b)
     *b = t;
 }
 
-static int int_comp(int* a, int* b)
+static int int_comp(const void* a, const void* b)
 {
-    int ret = 0;
-    if(*a > *b)
-    {
-        ret = 1;
-        int_swap(a,b);
-    } else if(*a < *b)
-    {
-        ret = -1;
-    }
-    return ret;
+    return (*(int*)a - *(int*)b);
 }
 
 static void create(size_t size)
@@ -127,9 +118,7 @@ int_array_t* parallel_prefix_sum(int_array_t* array)
         iter = len / pow(2, h);
         sum[h] = (int*) malloc(iter*sizeof(int));
 #ifdef OMP
-#pragma omp parallel \
-        shared(sum, iter, h) \
-        private(i)
+#pragma omp parallel shared(sum, iter, h) private(i)
         {
 #pragma omp for schedule(static)
 #endif
@@ -150,9 +139,7 @@ int_array_t* parallel_prefix_sum(int_array_t* array)
         iter = len / pow(2, h);
         pps[h] = (int*) malloc(iter*sizeof(int));
 #ifdef OMP
-#pragma omp parallel \
-        shared(sum, pps,iter, h) \
-        private(i)
+#pragma omp parallel shared(sum, pps,iter, h) private(i)
         {
 #pragma omp for schedule(static)
 #endif
@@ -171,8 +158,7 @@ int_array_t* parallel_prefix_sum(int_array_t* array)
 #endif
     }
 #ifdef OMP
-#pragma omp parallel \
-    private(i) shared(sum, pps, len)
+#pragma omp parallel private(i) shared(sum, pps, len)
     {
 #pragma omp for schedule(static)
 #endif
@@ -185,8 +171,7 @@ int_array_t* parallel_prefix_sum(int_array_t* array)
     }
 #endif
 #ifdef OMP
-#pragma omp parallel private(i) \
-    shared(pps, ret, len)
+#pragma omp parallel private(i) shared(pps, ret, len)
     {
 #pragma omp for schedule(static)
 #endif
@@ -196,8 +181,7 @@ int_array_t* parallel_prefix_sum(int_array_t* array)
     }
 #endif
 #ifdef OMP
-#pragma omp parallel private(h) \
-    shared(pps, sum, height)
+#pragma omp parallel private(h) shared(pps, sum, height)
     {
 #pragma omp for schedule(static)
         for(h=0; h<height; h++)
@@ -213,6 +197,27 @@ int_array_t* parallel_prefix_sum(int_array_t* array)
     return ret;
 }
 
+static void parallel_partition_sort(int_array_t* array, int_array_t* sample,
+        size_t start, size_t end)
+{
+    qsort(sample->ar, sample->len, sizeof(int), int_comp);
+    print(sample);
+    size_t i;
+    int t, j;
+    for(j=0; j<sample->len; j++)
+    {
+        int_array_t* mask = int_array_create(end-start);
+        for(i=start; i<end; i++)
+        {
+            t = int_array_get(array, i);
+            if(t < sample->ar[j])
+                int_array_set(mask, 1, i);
+        }
+        print(mask);
+        int_array_destroy(&mask);
+    }
+}
+
 void run_parallel_partition_sort(size_t size)
 {
     size_t resv_size;
@@ -221,14 +226,14 @@ void run_parallel_partition_sort(size_t size)
     resv_size = ceil(sqrt(size));
     set_with_rand(array);
     print(array);
-    fprintf(stdout, "Reservoir size %lu\n", resv_size);
     int_array_t* reservoir = get_random_sample(array, resv_size);
-    fprintf(stdout, "Original Array\n");
+    fprintf(stdout, "Reservoir Array\n");
     print(reservoir);
-    int_array_t* pps = parallel_prefix_sum(reservoir);
+    parallel_partition_sort(array, reservoir, 0, array->len);
+    /*int_array_t* pps = parallel_prefix_sum(reservoir);
     fprintf(stdout, "Parallel prefix sum\n");
     print(pps);
-    int_array_destroy(&pps);
+    int_array_destroy(&pps);*/
     int_array_destroy(&reservoir);
     destroy();
 }
