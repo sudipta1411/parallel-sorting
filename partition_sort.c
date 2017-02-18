@@ -103,8 +103,9 @@ int_array_t* parallel_prefix_sum(int_array_t* array)
     if(!array)
         return NULL;
     size_t len = array->len, i, iter;
+    int_array_t* ret = int_array_create(len);
     int height = log2(len), h;
-    printf("height : %d\n", height);
+    //printf("height : %d\n", height);
     int* sum[height+1];
     int* pps[height+1];
     sum[0] = (int*)malloc(len*sizeof(int));
@@ -127,7 +128,7 @@ int_array_t* parallel_prefix_sum(int_array_t* array)
         sum[h] = (int*) malloc(iter*sizeof(int));
 #ifdef OMP
 #pragma omp parallel \
-        shared(array, sum, iter, h) \
+        shared(sum, iter, h) \
         private(i)
         {
 #pragma omp for schedule(static)
@@ -141,35 +142,75 @@ int_array_t* parallel_prefix_sum(int_array_t* array)
         }
 #endif
     }
-    //fprintf(stdout, "sum : %d\n", sum[height][0]);
+    fprintf(stdout, "sum : %d\n", sum[height][0]);
     pps[height] = (int*) malloc(sizeof(int));
     pps[height][0] = 0;
-    for(h = height - 1; h <= 0; h++)
+    for(h = height - 1; h >= 0; h--)
     {
         iter = len / pow(2, h);
-        pps[h] = (int*)malloc(iter*sizeof(int));
+        pps[h] = (int*) malloc(iter*sizeof(int));
 #ifdef OMP
 #pragma omp parallel \
         shared(sum, pps,iter, h) \
         private(i)
         {
 #pragma omp for schedule(static)
+#endif
             for(i=0; i<iter; i++)
             {
                 if(i % 2 == 0) /*Left child*/
                 {
                     pps[h][i] = pps[h + 1][i / 2];
-                } else
+                } else /*Right Child*/
                 {
-                    //pps[h][i] = pps
+                    pps[h][i] = pps[h + 1][(i - 1) / 2] + sum[h][i - 1];
                 }
             }
-#endif
 #ifdef OMP
         }
 #endif
     }
-    return NULL;
+#ifdef OMP
+#pragma omp parallel \
+    private(i) shared(sum, pps, len)
+    {
+#pragma omp for schedule(static)
+#endif
+        for(i=0; i<len; i++)
+        {
+            pps[0][i] = pps[0][i] + sum[0][i];
+            //fprintf(stdout, "[%d] : pps[0][%lu] %d\n", omp_get_thread_num(), i, pps[0][i]);
+        }
+#ifdef OMP
+    }
+#endif
+#ifdef OMP
+#pragma omp parallel private(i) \
+    shared(pps, ret, len)
+    {
+#pragma omp for schedule(static)
+#endif
+        for(i=0; i<len; i++)
+            int_array_set(ret, pps[0][i], i);
+#ifdef OMP
+    }
+#endif
+#ifdef OMP
+#pragma omp parallel private(h) \
+    shared(pps, sum, height)
+    {
+#pragma omp for schedule(static)
+        for(h=0; h<height; h++)
+        {
+            free(pps[h]);
+            free(sum[h]);
+            pps[h] = sum[h] = NULL;
+        }
+#endif
+#ifdef OMP
+    }
+#endif
+    return ret;
 }
 
 void run_parallel_partition_sort(size_t size)
