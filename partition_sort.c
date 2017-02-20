@@ -284,11 +284,11 @@ static void parallel_partition_sort(int_array_t* array, int_array_t* sample,
 #ifdef OMP
 #pragma omp task
 #endif
-        parallel_partition_sort(array,sample, new_len+1, end, sample_index+1);
+        parallel_partition_sort(array, sample, new_len+1, end, sample_index+1);
 #pragma omp barrier
-        int_array_destroy(&new_sample);
+        /*int_array_destroy(&new_sample);
         int_array_destroy(&mask);
-        int_array_destroy(&pps);
+        int_array_destroy(&pps);*/
     /*}*/
 }
 
