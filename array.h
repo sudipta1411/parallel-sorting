@@ -43,7 +43,7 @@ static type type##_array_get(type##_array_t* array, unsigned long index) \
 {\
     if(!array || index >= array->len || index < 0) \
     {\
-        fprintf(stdout,"INDEX OUT OF BOUND\n"); \
+        fprintf(stdout,"INDEX OUT OF BOUND %lu > %lu\n", index, array->len); \
         return NULL; \
     }\
     return array->ar[index]; \
@@ -53,6 +53,17 @@ static size_t type##_array_len(type##_array_t* array) \
 {\
     if(!array) return 0; \
     return array->len; \
+}\
+static type##_array_t* type##_array_add(type##_array_t* array1, type##_array_t* array2) \
+{\
+    if(!array1 || !array2) return NULL; \
+    array1->ar = (type*)realloc(array1->ar,(array1->len + array2->len) * sizeof(type)); \
+    if(!array1->ar) return NULL; \
+    array1->len += array2->len; \
+    unsigned long i; \
+    for(i=0; i< array2->len; i++) \
+        array1->ar[array1->len + i] = array2->ar[i]; \
+    return array1; \
 }
 
 #define ARRAY_DEFINED
