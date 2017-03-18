@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -I.
-DFLAGS = -DNUM=16 -DNUM_THREAD=8  -DOMP -DMAX=1000
+DFLAGS = -DNUM=1024 -DNUM_THREAD=8  -DOMP -DMAX=1000
 FFLAGS = -fopenmp
 LFLAGS = -lm
 INCLUDE = array.h merge_sort.h comp.h partition_sort.h

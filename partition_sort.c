@@ -9,6 +9,7 @@
 array_impl(int);
 define_fptr(int);
 
+static bool debug = false;
 static int_array_t* array;
 
 static inline void int_swap(int* a, int* b)
@@ -77,6 +78,8 @@ static int_array_t* get_random_sample(int_array_t* array,
 {
     if(!array || k<=0 ||k> end - start)
         return NULL;
+    /*if(end - start == 2)
+        return array;*/
     int_array_t* reservoir = int_array_create(k);
     if(!reservoir)
         return NULL;
@@ -88,7 +91,7 @@ static int_array_t* get_random_sample(int_array_t* array,
         int_array_set(reservoir, buf, i);
     }
     srand(time(NULL));
-    for(; i < end; i++)
+    for(; i < end-start; i++)
     {
         j = rand() % (i + 1);
         if(j < k)
@@ -142,7 +145,6 @@ static int_array_t* parallel_prefix_sum(int_array_t* array)
     int_array_t* new_array = int_array_create(new_len);
     copy_and_pad(array, new_array);
     int height = log2(new_len), h;
-    //printf("height : %d\n", height);
     int* sum[height + 1];
     int* pps[height + 1];
     sum[0] = (int*)malloc(new_len * sizeof(int));
@@ -177,7 +179,6 @@ static int_array_t* parallel_prefix_sum(int_array_t* array)
         }
 #endif
     }
-    //fprintf(stdout, "sum : %d\n", sum[height][0]);
     pps[height] = (int*) malloc(sizeof(int));
     pps[height][0] = 0;
     for(h = height - 1; h >= 0; h--)
@@ -245,15 +246,26 @@ static int_array_t* parallel_prefix_sum(int_array_t* array)
 static void parallel_partition_sort(int_array_t* array, int_array_t* sample,
         size_t start, size_t end, size_t sample_index)
 {
+    if(debug) fprintf(stdout, "start :%lu, end:%lu, sample_index:%lu\n", start, end, sample_index);
     if(!array || !sample || end <= start || end-start == 1
-            || sample_index >= sample->len)
+            || sample_index > sample->len)
         return;
-    fprintf(stdout, "start :%lu, end:%lu\n", start, end);
+    if(sample_index == sample->len) {
+        size_t sample_size = ceil(sqrt(end-start));
+        int_array_t* new_sample = get_random_sample(array, start, end, sample_size);
+#ifdef OMP
+#pragma omp task
+#endif
+        parallel_partition_sort(array, new_sample, start, end, 0);
+        return;
+    }
     if(!sample->is_sorted) {
         qsort(sample->ar, sample->len, sizeof(int), int_comp);
         sample->is_sorted = true;
-        fprintf(stdout, "sorted sample\n");
-        print(sample);
+        if(debug) {
+            fprintf(stdout, "sorted sample\n");
+            print(sample);
+        }
     }
     size_t i, new_len = 0, mask_index = 0, index, cur_index;
     int t, j;
@@ -312,19 +324,23 @@ static void parallel_partition_sort(int_array_t* array, int_array_t* sample,
                 cur_index = i;
         }
         int_swap(&(array->ar[start + new_len]), &(array->ar[cur_index]));
-        fprintf(stdout,"new_len : %lu\n", new_len);
-        fprintf(stdout, "MASK\n");
-        print(mask);
-        fprintf(stdout, "Parallel_prefix_sum \n");
-        print(pps);
-        fprintf(stdout, "Array \n");
-        print(array);
+        if(debug) {
+            fprintf(stdout,"new_len : %lu\n", new_len);
+            fprintf(stdout, "MASK\n");
+            print(mask);
+            fprintf(stdout, "Parallel_prefix_sum \n");
+            print(pps);
+            fprintf(stdout, "Array \n");
+            print(array);
+        }
         size_t sample_size = ceil(sqrt(new_len));
         int_array_t* new_sample = NULL;
         if(new_len != 0) {
-            new_sample = get_random_sample(array, start, new_len, sample_size);
-            fprintf(stdout, "New sample\n");
-            print(new_sample);
+            new_sample = get_random_sample(array, start, start + new_len, sample_size);
+            if(debug) {
+                fprintf(stdout, "New sample\n");
+                print(new_sample);
+            }
         }
 
 #ifdef OMP
@@ -362,10 +378,8 @@ void run_parallel_partition_sort(size_t size)
 #ifdef DOMP
     }
 #endif
-    /*int_array_t* pps = parallel_prefix_sum(reservoir);
-    fprintf(stdout, "Parallel prefix sum\n");
-    print(pps);
-    int_array_destroy(&pps);*/
+    fprintf(stdout, "Sorted Array\n");
+    print(array);
     int_array_destroy(&reservoir);
     destroy();
 }
