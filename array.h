@@ -3,6 +3,7 @@
 #include<stdlib.h>
 #include<stddef.h>
 #include<stdio.h>
+#include<stdbool.h>
 
 #define ARR_SIZE(x) ((sizeof x) / (sizeof *x))
 
@@ -11,6 +12,7 @@
     typedef struct { \
         type *ar; \
         size_t len; \
+        bool is_sorted; \
     } type##_array_t; \
 \
 static type##_array_t* type##_array_create(size_t len) \
@@ -19,6 +21,7 @@ static type##_array_t* type##_array_create(size_t len) \
     array = (type##_array_t*)malloc(sizeof(type##_array_t)); \
     if(!array) return NULL; \
     array->len = len; \
+    array->is_sorted = false; \
     array->ar = (type*)malloc(len*sizeof(type)); \
     if(!array->ar) return NULL; \
     return array;\
@@ -35,7 +38,10 @@ static void type##_array_destroy(type##_array_t** array) \
 \
 static void type##_array_set(type##_array_t* array, type val, unsigned long index) \
 {\
-    if(!array || index >= array->len || index < 0) return; \
+    if(!array || index >= array->len || index < 0) { \
+        fprintf(stderr, "[SET]ARRAY INDEX OUT OF BOUND %lu > %lu\n", index, array->len-1); \
+        return; \
+    } \
     array->ar[index] = val; \
 }\
 \
@@ -43,7 +49,7 @@ static type type##_array_get(type##_array_t* array, unsigned long index) \
 {\
     if(!array || index >= array->len || index < 0) \
     {\
-        fprintf(stdout,"INDEX OUT OF BOUND %lu > %lu\n", index, array->len); \
+        fprintf(stdout,"[GET]INDEX OUT OF BOUND %lu > %lu\n", index, array->len-1); \
         return NULL; \
     }\
     return array->ar[index]; \

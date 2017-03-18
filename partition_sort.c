@@ -48,6 +48,15 @@ static void set_with_rand(int_array_t* array)
     }
 }
 
+static unsigned long get_next_pow2(unsigned long n)
+{
+    n--;
+    n |= n>>1; n |= n>>2; n |= n>>4;
+    n |= n>>8; n |= n>>16; n |= n>>32;
+    n++;
+    return n;
+}
+
 static void print(int_array_t* array)
 {
     if(array)
@@ -91,17 +100,52 @@ static int_array_t* get_random_sample(int_array_t* array,
     return reservoir;
 }
 
-int_array_t* parallel_prefix_sum(int_array_t* array)
+static void copy_and_pad(int_array_t* old, int_array_t* new)
+{
+    if(!old || !new) return;
+    if(old->len > new->len) {
+        fprintf(stderr, "old array is larger than new array");
+        return;
+    }
+    unsigned long i;
+#ifdef OMP
+#pragma parallel shared(old, new) private(i)
+    {
+#pragma omp for schedule(static)
+#endif
+        for(i=0; i<old->len; i++)
+            int_array_set(new, int_array_get(old, i), i);
+#ifdef OMP
+    }
+#endif
+
+#ifdef OMP
+#pragma parallel shared(old, new) private(i)
+    {
+#pragma omp for schedule(static)
+#endif
+        for(i=old->len; i<new->len; i++)
+            int_array_set(new, 0, i);
+#ifdef OMP
+    }
+#endif
+
+}
+
+static int_array_t* parallel_prefix_sum(int_array_t* array)
 {
     if(!array)
         return NULL;
     size_t len = array->len, i, iter;
+    size_t new_len = get_next_pow2(len);
     int_array_t* ret = int_array_create(len);
-    int height = log2(len), h;
+    int_array_t* new_array = int_array_create(new_len);
+    copy_and_pad(array, new_array);
+    int height = log2(new_len), h;
     //printf("height : %d\n", height);
-    int* sum[height+1];
-    int* pps[height+1];
-    sum[0] = (int*)malloc(len*sizeof(int));
+    int* sum[height + 1];
+    int* pps[height + 1];
+    sum[0] = (int*)malloc(new_len * sizeof(int));
 #ifdef OMP
 #pragma omp parallel shared(sum, len, array) private(i)
     {
@@ -109,7 +153,7 @@ int_array_t* parallel_prefix_sum(int_array_t* array)
 #endif
         for(i=0; i<len; i++)
         {
-            sum[0][i] = int_array_get(array, i);
+            sum[0][i] = int_array_get(new_array, i);
             //fprintf(stdout, "[%d] : %d\n", omp_get_thread_num(), sum[0][i]);
         }
 #ifdef OMP
@@ -117,8 +161,8 @@ int_array_t* parallel_prefix_sum(int_array_t* array)
 #endif
     for(h=1; h <= height; h++)
     {
-        iter = len / pow(2, h);
-        sum[h] = (int*) malloc(iter*sizeof(int));
+        iter = new_len / pow(2, h);
+        sum[h] = (int*) malloc(iter * sizeof(int));
 #ifdef OMP
 #pragma omp parallel shared(sum, iter, h) private(i)
         {
@@ -138,7 +182,7 @@ int_array_t* parallel_prefix_sum(int_array_t* array)
     pps[height][0] = 0;
     for(h = height - 1; h >= 0; h--)
     {
-        iter = len / pow(2, h);
+        iter = new_len / pow(2, h);
         pps[h] = (int*) malloc(iter*sizeof(int));
 #ifdef OMP
 #pragma omp parallel shared(sum, pps,iter, h) private(i)
@@ -194,18 +238,24 @@ int_array_t* parallel_prefix_sum(int_array_t* array)
 #ifdef OMP
     }
 #endif
+    int_array_destroy(&new_array);
     return ret;
 }
 
 static void parallel_partition_sort(int_array_t* array, int_array_t* sample,
         size_t start, size_t end, size_t sample_index)
 {
-    if(!array || !sample || end - start <= 1 || sample_index >= sample->len)
+    if(!array || !sample || end <= start || end-start == 1
+            || sample_index >= sample->len)
         return;
-    qsort(sample->ar, sample->len, sizeof(int), int_comp);
-    fprintf(stdout, "sorted sample\n");
-    print(sample);
-    size_t i, new_len = 0, index, cur_index;
+    fprintf(stdout, "start :%lu, end:%lu\n", start, end);
+    if(!sample->is_sorted) {
+        qsort(sample->ar, sample->len, sizeof(int), int_comp);
+        sample->is_sorted = true;
+        fprintf(stdout, "sorted sample\n");
+        print(sample);
+    }
+    size_t i, new_len = 0, mask_index = 0, index, cur_index;
     int t, j;
     /*for(j=0; j<sample->len; j++)
     {*/
@@ -221,23 +271,23 @@ static void parallel_partition_sort(int_array_t* array, int_array_t* sample,
             t = int_array_get(array, i);
             if(sample_index == 0) {
                 if(t < sample->ar[0]) {
-                    int_array_set(mask, 1, i);
+                    int_array_set(mask, 1, i-start);
 #ifdef OMP
 #pragma omp atomic
 #endif
                     new_len++;
                 } else {
-                    int_array_set(mask, 0, i);
+                    int_array_set(mask, 0, i-start);
                 }
             } else {
                 if(t < sample->ar[sample_index] && t >= sample->ar[sample_index - 1]) {
-                    int_array_set(mask, 1, i);
+                    int_array_set(mask, 1, i-start);
 #ifdef OMP
 #pragma omp atomic
 #endif
                     new_len++;
                 } else {
-                    int_array_set(mask, 0, i);
+                    int_array_set(mask, 0, i-start);
                 }
             }
         }
@@ -249,8 +299,8 @@ static void parallel_partition_sort(int_array_t* array, int_array_t* sample,
 #endif
         for(i=start; i<end; i++)
         {
-            if(1 == int_array_get(mask, i)) {
-                index = int_array_get(pps, i) - 1;
+            if(1 == int_array_get(mask, i-start)) {
+                index = start + int_array_get(pps, i-start) - 1;
                 /*while(int_array_get(array, index) < sample->ar[sample_index])
                     index++;*/
 #ifdef DOMP
@@ -261,7 +311,7 @@ static void parallel_partition_sort(int_array_t* array, int_array_t* sample,
             if(sample->ar[sample_index] == int_array_get(array,i))
                 cur_index = i;
         }
-        int_swap(&(array->ar[new_len]), &(array->ar[cur_index]));
+        int_swap(&(array->ar[start + new_len]), &(array->ar[cur_index]));
         fprintf(stdout,"new_len : %lu\n", new_len);
         fprintf(stdout, "MASK\n");
         print(mask);
@@ -271,21 +321,22 @@ static void parallel_partition_sort(int_array_t* array, int_array_t* sample,
         print(array);
         size_t sample_size = ceil(sqrt(new_len));
         int_array_t* new_sample = NULL;
-        if(new_len != 0)
+        if(new_len != 0) {
             new_sample = get_random_sample(array, start, new_len, sample_size);
-        fprintf(stdout, "New sample\n");
-        print(new_sample);
+            fprintf(stdout, "New sample\n");
+            print(new_sample);
+        }
 
 #ifdef OMP
 #pragma omp task
 #endif
         if(new_len != 0)
-            parallel_partition_sort(array, new_sample, start, new_len, 0);
+            parallel_partition_sort(array, new_sample, start, start + new_len + 1, 0);
 #ifdef OMP
 #pragma omp task
 #endif
-        parallel_partition_sort(array, sample, new_len+1, end, sample_index+1);
-#pragma omp barrier
+        parallel_partition_sort(array, sample, start + new_len+1, end, sample_index+1);
+//#pragma omp barrier
         /*int_array_destroy(&new_sample);
         int_array_destroy(&mask);
         int_array_destroy(&pps);*/
@@ -303,12 +354,12 @@ void run_parallel_partition_sort(size_t size)
     int_array_t* reservoir = get_random_sample(array, 0, array->len, resv_size);
     fprintf(stdout, "Reservoir Array\n");
     print(reservoir);
-#ifdef OMP
+#ifdef DOMP
 #pragma omp parallel
     {
 #endif
         parallel_partition_sort(array, reservoir, 0, array->len, 0);
-#ifdef OMP
+#ifdef DOMP
     }
 #endif
     /*int_array_t* pps = parallel_prefix_sum(reservoir);
