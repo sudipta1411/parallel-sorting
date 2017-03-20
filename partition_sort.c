@@ -313,8 +313,6 @@ static void parallel_partition_sort(int_array_t* array, int_array_t* sample,
         {
             if(1 == int_array_get(mask, i-start)) {
                 index = start + int_array_get(pps, i-start) - 1;
-                /*while(int_array_get(array, index) < sample->ar[sample_index])
-                    index++;*/
 #ifdef DOMP
 #pragma omp critical
 #endif
@@ -352,24 +350,24 @@ static void parallel_partition_sort(int_array_t* array, int_array_t* sample,
 #pragma omp task
 #endif
         parallel_partition_sort(array, sample, start + new_len + 1, end, sample_index+1);
-//#pragma omp barrier
         int_array_destroy(&new_sample);
         int_array_destroy(&mask);
         int_array_destroy(&pps);
-    /*}*/
 }
 
 void run_parallel_partition_sort(size_t size)
 {
     size_t resv_size;
     create(size);
-    fprintf(stdout, "Original Array\n");
     resv_size = ceil(sqrt(size));
     set_with_rand(array);
-    print(array);
+    if(debug) {
+        fprintf(stdout, "Original Array\n");
+        print(array);
+    }
     int_array_t* reservoir = get_random_sample(array, 0, array->len, resv_size);
-    fprintf(stdout, "Reservoir Array\n");
-    print(reservoir);
+    //fprintf(stdout, "Reservoir Array\n");
+    //print(reservoir);
 #ifdef DOMP
 #pragma omp parallel
     {
@@ -378,8 +376,10 @@ void run_parallel_partition_sort(size_t size)
 #ifdef DOMP
     }
 #endif
-    fprintf(stdout, "Sorted Array\n");
-    print(array);
+    if(debug) {
+        fprintf(stdout, "Sorted Array\n");
+        print(array);
+    }
     int_array_destroy(&reservoir);
     destroy();
 }

@@ -1,5 +1,6 @@
 #include<stdio.h>
 #include<time.h>
+#include<stdbool.h>
 #include<omp.h>
 #include"merge_sort.h"
 #include"array.h"
@@ -9,6 +10,7 @@ array_impl(int);
 define_fptr(int);
 
 static int_array_t* array;
+static bool debug = false;
 
 static inline void int_swap(int* a, int* b)
 {
@@ -124,9 +126,11 @@ static void parallel_merge_sort(int_array_t* array, size_t start,
 void run_parallel_merge_sort(size_t size)
 {
     create(size);
-    fprintf(stdout, "Original Array\n");
     set_with_rand(array);
-    print(array);
+    if(debug) {
+        fprintf(stdout, "Original Array\n");
+        print(array);
+    }
 #ifdef OMP
 #pragma omp parallel
     {
@@ -136,7 +140,9 @@ void run_parallel_merge_sort(size_t size)
     }
 #endif
     fprintf(stdout, "\n");
-    fprintf(stdout, "Sorted Array\n");
-    print(array);
+    if(debug) {
+        fprintf(stdout, "Sorted Array\n");
+        print(array);
+    }
     destroy();
 }
