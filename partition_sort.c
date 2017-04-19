@@ -5,11 +5,12 @@
 #include"partition_sort.h"
 #include"array.h"
 #include"comp.h"
+#include"bin_search_range.h"
 
 array_impl(int);
 define_fptr(int);
 
-static bool debug = false;
+static bool debug = true;
 static int_array_t* array;
 
 static inline void int_swap(int* a, int* b)
@@ -64,6 +65,19 @@ static void print(int_array_t* array)
     {
         size_t i;
         for(i=0; i<array->len; i++)
+        {
+            fprintf(stdout, "%d ", int_array_get(array, i));
+        }
+        fprintf(stdout, "\n");
+    }
+}
+
+static void print_dyn(int_array_t* array)
+{
+    if(array)
+    {
+        size_t i;
+        for(i=0; i<array->size; i++)
         {
             fprintf(stdout, "%d ", int_array_get(array, i));
         }
@@ -243,6 +257,54 @@ static int_array_t* parallel_prefix_sum(int_array_t* array)
     return ret;
 }
 
+int_array_t* parallel_partition_sort(int_array_t* array, int_array_t* sample)
+{
+    if(!array || !sample)
+        return NULL;
+    qsort(sample->ar, sample->len, sizeof(int), int_comp);
+    if(debug) {
+        fprintf(stdout, "sorted sample\n");
+        print(sample);
+    }
+    unsigned long count;
+    int_array_t** buckets = NULL;
+    buckets = (int_array_t**)malloc(sizeof(int_array_t*) * sample->len);
+#ifdef OMP
+#pragma omp parallel private(count) shared(buckets)
+    {
+#pragma omp for schedule(static)
+#endif
+        for(count=0; count < sample->len; count++)
+            buckets[count] = int_array_create(DEFAULT_ARRAY_LEN);
+#ifdef OMP
+    }
+#endif
+
+#ifdef OMP
+#pragma omp parallel private(count) shared(buckets, array, sample)
+    {
+#pragma omp for schedule(static)
+#endif
+        for(count=0; count<array->len; count++) {
+#pragma omp critical
+            if(array->ar[count] < sample->ar[0]) {
+                int_array_set_dyn(buckets[0], array->ar[count]);
+            } else if(array->ar[count] > sample->ar[sample->len-1]) {
+                int_array_set_dyn(buckets[sample->len-1], array->ar[count]);
+            }
+            range_t* rng = bin_search_range(sample->ar, sample->len, array->ar[count]);
+#pragma omp critical
+            int_array_set_dyn(buckets[rng->high], array->ar[count]);
+        }
+#ifdef OMP
+    }
+#endif
+    for(count=0; count<sample->len; count++) {
+        fprintf(stdout, "Bucket %lu\n", count);
+        print_dyn(buckets[count]);
+    }
+}
+/*
 static void parallel_partition_sort(int_array_t* array, int_array_t* sample,
         size_t start, size_t end, size_t sample_index)
 {
@@ -269,8 +331,6 @@ static void parallel_partition_sort(int_array_t* array, int_array_t* sample,
     }
     size_t i, new_len = 0, mask_index = 0, index, cur_index;
     int t, j;
-    /*for(j=0; j<sample->len; j++)
-    {*/
         //new_len = 0;
         int_array_t* mask = int_array_create(end - start);
 #ifdef OMP
@@ -353,7 +413,7 @@ static void parallel_partition_sort(int_array_t* array, int_array_t* sample,
         int_array_destroy(&new_sample);
         int_array_destroy(&mask);
         int_array_destroy(&pps);
-}
+}*/
 
 void run_parallel_partition_sort(size_t size)
 {
@@ -372,7 +432,8 @@ void run_parallel_partition_sort(size_t size)
 #pragma omp parallel
     {
 #endif
-        parallel_partition_sort(array, reservoir, 0, array->len, 0);
+        //parallel_partition_sort(array, reservoir, 0, array->len, 0);
+        parallel_partition_sort(array, reservoir);
 #ifdef DOMP
     }
 #endif
@@ -382,4 +443,9 @@ void run_parallel_partition_sort(size_t size)
     }
     int_array_destroy(&reservoir);
     destroy();
+    /*int_array_t* ar = int_array_create(32); int i;
+    for(i=0; i<65; i++)
+        int_array_set_dyn(ar, i);
+    fprintf(stdout, "Size : %lu, len : %lu\n", ar->size, ar->len);
+    print_dyn(ar);*/
 }

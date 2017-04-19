@@ -6,12 +6,16 @@
 #include<stdbool.h>
 
 #define ARR_SIZE(x) ((sizeof x) / (sizeof *x))
+#define DEFAULT_ARRAY_LEN 2048L
 
 /*Generic array*/
 #define array_impl(type) \
     typedef struct { \
         type *ar; \
         size_t len; \
+        /*This is the actual size of the array*/\
+        size_t size; \
+        unsigned long cur; \
         bool is_sorted; \
     } type##_array_t; \
 \
@@ -21,6 +25,8 @@ static type##_array_t* type##_array_create(size_t len) \
     array = (type##_array_t*)malloc(sizeof(type##_array_t)); \
     if(!array) return NULL; \
     array->len = len; \
+    array->size = 0l; \
+    array->cur = 0l; \
     array->is_sorted = false; \
     array->ar = (type*)malloc(len*sizeof(type)); \
     if(!array->ar) return NULL; \
@@ -43,6 +49,25 @@ static void type##_array_set(type##_array_t* array, type val, unsigned long inde
         return; \
     } \
     array->ar[index] = val; \
+    array->size = array->size + 1; \
+}\
+\
+static void type##_array_set_dyn(type##_array_t* array, type val/*, unsigned long index*/) \
+{\
+    if(!array /*|| index >= array->len || index < 0i*/) { \
+        /*fprintf(stderr, "[SET_DYN]INVALID INDEX %lu\n", index);*/ \
+        return; \
+    } \
+    \
+    if(array->size + 1 >= array->len) {\
+        size_t new_len = 2 * array->len;\
+        realloc(array->ar, new_len * sizeof(type));\
+        fprintf(stdout, "new_len->%lu\n", new_len); \
+        array->len = new_len;\
+    } \
+    array->ar[array->cur] = val; \
+    array->cur = array->cur + 1; \
+    array->size = array->size + 1; \
 }\
 \
 static type type##_array_get(type##_array_t* array, unsigned long index) \
