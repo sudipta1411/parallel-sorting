@@ -13,9 +13,6 @@
     typedef struct { \
         type *ar; \
         size_t len; \
-        /*This is the actual size of the array*/\
-        size_t size; \
-        unsigned long cur; \
         bool is_sorted; \
     } type##_array_t; \
 \
@@ -25,8 +22,6 @@ static type##_array_t* type##_array_create(size_t len) \
     array = (type##_array_t*)malloc(sizeof(type##_array_t)); \
     if(!array) return NULL; \
     array->len = len; \
-    array->size = 0l; \
-    array->cur = 0l; \
     array->is_sorted = false; \
     array->ar = (type*)malloc(len*sizeof(type)); \
     if(!array->ar) return NULL; \
@@ -49,7 +44,6 @@ static void type##_array_set(type##_array_t* array, type val, unsigned long inde
         return; \
     } \
     array->ar[index] = val; \
-    array->size = array->size + 1; \
 }\
 \
 static type type##_array_get(type##_array_t* array, unsigned long index) \

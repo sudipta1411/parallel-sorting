@@ -8,6 +8,8 @@
 #include"bin_search_range.h"
 #include"stack.h"
 
+#define THRESHOLD_SIZE 20
+
 array_impl(int);
 define_fptr(int);
 
@@ -72,19 +74,6 @@ static void print(int_array_t* array)
     {
         size_t i;
         for(i=0; i<array->len; i++)
-        {
-            fprintf(stdout, "%d ", int_array_get(array, i));
-        }
-        fprintf(stdout, "\n");
-    }
-}
-
-static void print_dyn(int_array_t* array)
-{
-    if(array)
-    {
-        size_t i;
-        for(i=0; i<array->size; i++)
         {
             fprintf(stdout, "%d ", int_array_get(array, i));
         }
@@ -278,11 +267,16 @@ static void copy_from_stack(int_array_t* array, unsigned long start,
         fprintf(stdout, "[WARN] stack is not empty");
 }
 
-static int_array_t* parallel_partition_sort(int_array_t* array, unsigned long start,
-        unsigned long end/*, int_array_t* sample*/)
+static void parallel_partition_sort(int_array_t* array,
+        unsigned long start, unsigned long end)
 {
-    if(!array || start >= end)
-        return NULL;
+    fprintf(stdout, "[%d] start->%lu, end->%lu\n", omp_get_thread_num(), start, end);
+    if(!array || start >= end || end - start == 1)
+        return;
+    if(end - start <= THRESHOLD_SIZE) {
+        qsort(&(array->ar[start]), end, sizeof(int), int_comp);
+        return;
+    }
     size_t sample_len = ceil(sqrt(end-start));
     int_array_t* sample = get_random_sample(array, start, end, sample_len);
     qsort(sample->ar, sample->len, sizeof(int), int_comp);
@@ -341,15 +335,16 @@ static int_array_t* parallel_partition_sort(int_array_t* array, unsigned long st
 #ifdef OMP
     }
 #endif
-    fprintf(stdout, "intervals\n");
-    print(intervals);
+    /*fprintf(stdout, "intervals\n");
+    print(intervals);*/
     int_array_t* pps = parallel_prefix_sum(intervals);
     int_array_destroy(&intervals);
-    fprintf(stdout, "PPS\n");
-    print(pps);
-    size_t s, e;
+    /*fprintf(stdout, "PPS\n");
+    print(pps);*/
+    size_t s, e, s_id;
+    int s_val;
 #ifdef OMP
-#pragma omp parallel private(count, start, end) shared(buckets, array, pps)
+#pragma omp parallel private(count, s, e, s_id, s_val) shared(buckets, array, pps, sample_len)
     {
 #pragma omp for schedule(static)
 #endif
@@ -359,13 +354,23 @@ static int_array_t* parallel_partition_sort(int_array_t* array, unsigned long st
                 e = stack_size(buckets[0]);
             } else {
                 s = int_array_get(pps, count-1) + count;
-                e = start + stack_size(buckets[count]);
+                e = s + stack_size(buckets[count]);
             }
             copy_from_stack(array, s, e, buckets[count]);
+            destroy_stack(&buckets[count]);
+            fprintf(stdout, "[%d] bucket id : %lu start : %lu, end : %lu\n", omp_get_thread_num(), count, s, e);
+            if(count != sample_len) {
+                //s_id = count + int_array_get(pps, count);
+                s_val = int_array_get(sample, count);
+                int_array_set(array, s_val, e);
+            }
+            parallel_partition_sort(array, s, e);
         }
 #ifdef OMP
     }
 #endif
+    int_array_destroy(&sample);
+    int_array_destroy(&pps);
 }
 
 /*
