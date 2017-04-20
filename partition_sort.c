@@ -264,11 +264,27 @@ static int_array_t* parallel_prefix_sum(int_array_t* array)
     return ret;
 }
 
-int_array_t* parallel_partition_sort(int_array_t* array, unsigned long start,
-        unsigned long end, int_array_t* sample)
+static void copy_from_stack(int_array_t* array, unsigned long start,
+        unsigned long end, stack_t* stack)
 {
-    if(!array || !sample)
+    if(!array || !stack) return;
+    int sz = stack_size(stack);
+    if(end-start < sz) return;
+    unsigned long i = 0;
+    for(i = start; i<end; i++) {
+        int_array_set(array, pop(stack), i);
+    }
+    if(stack_size(stack) != 0 )
+        fprintf(stdout, "[WARN] stack is not empty");
+}
+
+static int_array_t* parallel_partition_sort(int_array_t* array, unsigned long start,
+        unsigned long end/*, int_array_t* sample*/)
+{
+    if(!array || start >= end)
         return NULL;
+    size_t sample_len = ceil(sqrt(end-start));
+    int_array_t* sample = get_random_sample(array, start, end, sample_len);
     qsort(sample->ar, sample->len, sizeof(int), int_comp);
     if(debug) {
         fprintf(stdout, "sorted sample\n");
@@ -314,7 +330,30 @@ int_array_t* parallel_partition_sort(int_array_t* array, unsigned long start,
         display_stack(buckets[count]);
     }
 
+    int_array_t* intervals = int_array_create(sample->len + 1);
+#ifdef OMP
+#pragma omp parallel private(count) shared(buckets, intervals)
+    {
+#pragma omp for schedule(static)
+#endif
+        for(count=0; count <= sample->len; count++)
+            int_array_set(intervals, stack_size(buckets[count]), count);
+#ifdef OMP
+    }
+#endif
+    fprintf(stdout, "intervals\n");
+    print(intervals);
+    int_array_t* pps = parallel_prefix_sum(intervals);
+    int_array_destroy(&intervals);
+    fprintf(stdout, "PPS\n");
+    print(pps);
+/*#ifdef OMP
+#pragma omp parallel private(count) shared(buckets, array, intervals)
+    {
+#pragma omp for schedule(static)
+#endif*/
 }
+
 /*
 static void parallel_partition_sort(int_array_t* array, int_array_t* sample,
         size_t start, size_t end, size_t sample_index)
@@ -430,13 +469,13 @@ void run_parallel_partition_sort(size_t size)
 {
     size_t resv_size;
     create(size);
-    resv_size = ceil(sqrt(size));
+    //resv_size = ceil(sqrt(size));
     set_with_rand(array);
     if(debug) {
         fprintf(stdout, "Original Array\n");
         print(array);
     }
-    int_array_t* reservoir = get_random_sample(array, 0, array->len, resv_size);
+    //int_array_t* reservoir = get_random_sample(array, 0, array->len, resv_size);
     //fprintf(stdout, "Reservoir Array\n");
     //print(reservoir);
 #ifdef DOMP
@@ -444,7 +483,7 @@ void run_parallel_partition_sort(size_t size)
     {
 #endif
         //parallel_partition_sort(array, reservoir, 0, array->len, 0);
-        parallel_partition_sort(array, 0, array->len, reservoir);
+        parallel_partition_sort(array, 0, array->len/*, reservoir*/);
 #ifdef DOMP
     }
 #endif
@@ -452,6 +491,6 @@ void run_parallel_partition_sort(size_t size)
         fprintf(stdout, "Sorted Array\n");
         print(array);
     }
-    int_array_destroy(&reservoir);
+    //int_array_destroy(&reservoir);
     destroy();
 }

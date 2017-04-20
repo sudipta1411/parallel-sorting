@@ -52,24 +52,6 @@ static void type##_array_set(type##_array_t* array, type val, unsigned long inde
     array->size = array->size + 1; \
 }\
 \
-static void type##_array_set_dyn(type##_array_t* array, type val/*, unsigned long index*/) \
-{\
-    if(!array /*|| index >= array->len || index < 0i*/) { \
-        /*fprintf(stderr, "[SET_DYN]INVALID INDEX %lu\n", index);*/ \
-        return; \
-    } \
-    \
-    if(array->size + 1 >= array->len) {\
-        size_t new_len = 2 * array->len;\
-        realloc(array->ar, new_len * sizeof(type));\
-        fprintf(stdout, "new_len->%lu\n", new_len); \
-        array->len = new_len;\
-    } \
-    array->ar[array->cur] = val; \
-    array->cur = array->cur + 1; \
-    array->size = array->size + 1; \
-}\
-\
 static type type##_array_get(type##_array_t* array, unsigned long index) \
 {\
     if(!array || index >= array->len || index < 0) \
