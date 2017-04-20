@@ -347,11 +347,25 @@ static int_array_t* parallel_partition_sort(int_array_t* array, unsigned long st
     int_array_destroy(&intervals);
     fprintf(stdout, "PPS\n");
     print(pps);
-/*#ifdef OMP
-#pragma omp parallel private(count) shared(buckets, array, intervals)
+    size_t s, e;
+#ifdef OMP
+#pragma omp parallel private(count, start, end) shared(buckets, array, pps)
     {
 #pragma omp for schedule(static)
-#endif*/
+#endif
+        for(count=0; count<=sample->len; count++) {
+            if(count == 0) {
+                s = 0;
+                e = stack_size(buckets[0]);
+            } else {
+                s = int_array_get(pps, count-1) + count;
+                e = start + stack_size(buckets[count]);
+            }
+            copy_from_stack(array, s, e, buckets[count]);
+        }
+#ifdef OMP
+    }
+#endif
 }
 
 /*
