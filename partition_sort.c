@@ -6,6 +6,7 @@
 #include"array.h"
 #include"comp.h"
 #include"bin_search_range.h"
+#include"stack.h"
 
 array_impl(int);
 define_fptr(int);
@@ -40,14 +41,20 @@ static void destroy()
 
 static void set_with_rand(int_array_t* array)
 {
-    size_t i;
+    size_t i, j;
     int r;
-    srand((unsigned)time(NULL));
     for(i=0; i<array->len; i++)
+        int_array_set(array, i, i);
+    srand((unsigned)time(NULL));
+    for(i=array->len-1; i>0; i--) {
+        j = rand() % (i + 1);
+        int_swap(&(array->ar[i]), &(array->ar[j]));
+    }
+    /*for(i=0; i<array->len; i++)
     {
         r = rand() % MAX;
         int_array_set(array, r, i);
-    }
+    }*/
 }
 
 static unsigned long get_next_pow2(unsigned long n)
@@ -257,7 +264,8 @@ static int_array_t* parallel_prefix_sum(int_array_t* array)
     return ret;
 }
 
-int_array_t* parallel_partition_sort(int_array_t* array, int_array_t* sample)
+int_array_t* parallel_partition_sort(int_array_t* array, unsigned long start,
+        unsigned long end, int_array_t* sample)
 {
     if(!array || !sample)
         return NULL;
@@ -267,42 +275,45 @@ int_array_t* parallel_partition_sort(int_array_t* array, int_array_t* sample)
         print(sample);
     }
     unsigned long count;
-    int_array_t** buckets = NULL;
-    buckets = (int_array_t**)malloc(sizeof(int_array_t*) * sample->len);
+    stack_t** buckets = NULL;
+    buckets = (stack_t**)malloc(sizeof(stack_t*) * (sample->len+1));
 #ifdef OMP
 #pragma omp parallel private(count) shared(buckets)
     {
 #pragma omp for schedule(static)
 #endif
-        for(count=0; count < sample->len; count++)
-            buckets[count] = int_array_create(DEFAULT_ARRAY_LEN);
+        for(count=0; count <= sample->len; count++)
+            buckets[count] = create_stack();
 #ifdef OMP
     }
 #endif
-
+    //count=0;
 #ifdef OMP
 #pragma omp parallel private(count) shared(buckets, array, sample)
     {
 #pragma omp for schedule(static)
 #endif
-        for(count=0; count<array->len; count++) {
-#pragma omp critical
+        for(count=0; count < (end - start); count++) {
             if(array->ar[count] < sample->ar[0]) {
-                int_array_set_dyn(buckets[0], array->ar[count]);
+                push(buckets[0], array->ar[count]);
             } else if(array->ar[count] > sample->ar[sample->len-1]) {
-                int_array_set_dyn(buckets[sample->len-1], array->ar[count]);
+                push(buckets[sample->len], array->ar[count]);
+            } else {
+                range_t* rng = bin_search_range(sample->ar, sample->len, array->ar[count]);
+                //fprintf(stdout, "[%d] bucket : %d for %dth item->%d\n", omp_get_thread_num(), rng->high, count, array->ar[count]);
+                if((array->ar[count] != sample->ar[rng->low]) &&
+                        (array->ar[count] != sample->ar[rng->high]))
+                    push(buckets[rng->high], array->ar[count]);
             }
-            range_t* rng = bin_search_range(sample->ar, sample->len, array->ar[count]);
-#pragma omp critical
-            int_array_set_dyn(buckets[rng->high], array->ar[count]);
         }
 #ifdef OMP
     }
 #endif
-    for(count=0; count<sample->len; count++) {
+    for(count=0; count <= sample->len; count++) {
         fprintf(stdout, "Bucket %lu\n", count);
-        print_dyn(buckets[count]);
+        display_stack(buckets[count]);
     }
+
 }
 /*
 static void parallel_partition_sort(int_array_t* array, int_array_t* sample,
@@ -433,7 +444,7 @@ void run_parallel_partition_sort(size_t size)
     {
 #endif
         //parallel_partition_sort(array, reservoir, 0, array->len, 0);
-        parallel_partition_sort(array, reservoir);
+        parallel_partition_sort(array, 0, array->len, reservoir);
 #ifdef DOMP
     }
 #endif
@@ -443,9 +454,4 @@ void run_parallel_partition_sort(size_t size)
     }
     int_array_destroy(&reservoir);
     destroy();
-    /*int_array_t* ar = int_array_create(32); int i;
-    for(i=0; i<65; i++)
-        int_array_set_dyn(ar, i);
-    fprintf(stdout, "Size : %lu, len : %lu\n", ar->size, ar->len);
-    print_dyn(ar);*/
 }

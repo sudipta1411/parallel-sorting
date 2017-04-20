@@ -13,5 +13,7 @@ stack_t* create_stack();
 void destroy_stack(stack_t** stack);
 void push(stack_t* stack, int elem);
 int pop(stack_t* stack);
+void display_stack(stack_t* stack);
+int stack_size(stack_t* stack);
 
 #endif /*_STACK_H*/
