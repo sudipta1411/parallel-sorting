@@ -271,10 +271,11 @@ static void parallel_partition_sort(int_array_t* array,
         unsigned long start, unsigned long end)
 {
     fprintf(stdout, "[%d] start->%lu, end->%lu\n", omp_get_thread_num(), start, end);
-    if(!array || start >= end /*|| end - start == 1*/)
+    if(!array /*|| start >= end || end - start == 1*/)
         return;
     if(end - start <= THRESHOLD_SIZE) {
-        qsort(&(array->ar[start]), (end - start), sizeof(int), int_comp);
+        if(start != end)
+            qsort(&(array->ar[start]), (end - start), sizeof(int), int_comp);
         return;
     }
     size_t sample_len = ceil(sqrt(end-start));
@@ -373,16 +374,16 @@ static void parallel_partition_sort(int_array_t* array,
 #endif
     int_array_destroy(&sample);
     int_array_destroy(&pps);
-#ifdef OMP
+#ifdef DOMP
 #pragma omp parallel private(count) shared(array, ranges, sample_len)
     {
-#pragma omp for schedule(static)
+//#pragma omp for schedule(static)
 #endif
         for(count =0; count<=sample_len; count++) {
-            //fprintf(stdout, "[%d] bucket id->%lu, sort-start-> %lu, sort-end-> %lu\n", omp_get_thread_num(), count, ranges[count].low, ranges[count].high);
+#pragma omp task //private(count) shared(array, ranges)
             parallel_partition_sort(array, ranges[count].low, ranges[count].high);
         }
-#ifdef OMP
+#ifdef DOMP
     }
 #endif
 }
