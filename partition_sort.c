@@ -8,7 +8,7 @@
 #include"bin_search_range.h"
 #include"stack.h"
 
-#define THRESHOLD_SIZE 20
+const int THRESHOLD_SIZE = 20;
 
 array_impl(int);
 define_fptr(int);
@@ -271,10 +271,10 @@ static void parallel_partition_sort(int_array_t* array,
         unsigned long start, unsigned long end)
 {
     fprintf(stdout, "[%d] start->%lu, end->%lu\n", omp_get_thread_num(), start, end);
-    if(!array || start >= end || end - start == 1)
+    if(!array || start >= end /*|| end - start == 1*/)
         return;
     if(end - start <= THRESHOLD_SIZE) {
-        qsort(&(array->ar[start]), end, sizeof(int), int_comp);
+        qsort(&(array->ar[start]), (end - start), sizeof(int), int_comp);
         return;
     }
     size_t sample_len = ceil(sqrt(end-start));
@@ -319,10 +319,10 @@ static void parallel_partition_sort(int_array_t* array,
 #ifdef OMP
     }
 #endif
-    for(count=0; count <= sample->len; count++) {
+    /*for(count=0; count <= sample->len; count++) {
         fprintf(stdout, "Bucket %lu\n", count);
         display_stack(buckets[count]);
-    }
+    }*/
 
     int_array_t* intervals = int_array_create(sample->len + 1);
 #ifdef OMP
@@ -343,8 +343,10 @@ static void parallel_partition_sort(int_array_t* array,
     print(pps);*/
     size_t s, e, s_id;
     int s_val;
+    range_t ranges[sample_len+1];
 #ifdef OMP
-#pragma omp parallel private(count, s, e, s_id, s_val) shared(buckets, array, pps, sample_len)
+#pragma omp parallel private(count, s, e, s_id, s_val) \
+    shared(buckets, array, pps, sample_len, ranges)
     {
 #pragma omp for schedule(static)
 #endif
@@ -356,21 +358,33 @@ static void parallel_partition_sort(int_array_t* array,
                 s = int_array_get(pps, count-1) + count;
                 e = s + stack_size(buckets[count]);
             }
+            ranges[count].low = s;
+            ranges[count].high = e;
             copy_from_stack(array, s, e, buckets[count]);
             destroy_stack(&buckets[count]);
-            fprintf(stdout, "[%d] bucket id : %lu start : %lu, end : %lu\n", omp_get_thread_num(), count, s, e);
+            //fprintf(stdout, "[%d] bucket id : %lu start : %lu, end : %lu\n", omp_get_thread_num(), count, s, e);
             if(count != sample_len) {
-                //s_id = count + int_array_get(pps, count);
                 s_val = int_array_get(sample, count);
                 int_array_set(array, s_val, e);
             }
-            parallel_partition_sort(array, s, e);
         }
 #ifdef OMP
     }
 #endif
     int_array_destroy(&sample);
     int_array_destroy(&pps);
+#ifdef OMP
+#pragma omp parallel private(count) shared(array, ranges, sample_len)
+    {
+#pragma omp for schedule(static)
+#endif
+        for(count =0; count<=sample_len; count++) {
+            //fprintf(stdout, "[%d] bucket id->%lu, sort-start-> %lu, sort-end-> %lu\n", omp_get_thread_num(), count, ranges[count].low, ranges[count].high);
+            parallel_partition_sort(array, ranges[count].low, ranges[count].high);
+        }
+#ifdef OMP
+    }
+#endif
 }
 
 /*

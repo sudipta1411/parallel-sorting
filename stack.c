@@ -6,7 +6,6 @@
 static omp_lock_t readlock;
 static omp_lock_t writelock;
 
-
 stack_t* create_stack()
 {
     omp_init_lock(&readlock);
